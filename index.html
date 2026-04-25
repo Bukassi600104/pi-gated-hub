@@ -890,9 +890,15 @@
         currentUser = auth;
         console.log("[Pi Auth] success:", auth);
         showPioneerBar(auth.user.username);
+        // Auth resolved — gate the button open for payment
+        payBtn.disabled    = false;
+        payBtn.textContent = "Pay with Pi";
       } catch (err) {
         console.error("[Pi Auth] error:", err);
         showAuthError("Authentication failed");
+        // Still enable the button so the user can tap to retry via startPayment
+        payBtn.disabled    = false;
+        payBtn.textContent = "Pay with Pi";
       }
     }
 
@@ -1010,11 +1016,27 @@
 
     // ── Payment flow ──────────────────────────────────────────────────────────────
 
-    function startPayment() {
+    async function startPayment() {
+      // If auth hasn't resolved yet (edge case), retry it before opening payment
       if (!currentUser) {
-        setPayStatus("Please wait for authentication...", "#F0A500");
-        clearPayStatus(3000);
-        return;
+        payBtn.disabled    = true;
+        payBtn.textContent = "Connecting...";
+        setPayStatus("Authenticating with Pi...", "#F0A500");
+        try {
+          const auth = await Pi.authenticate(["payments"], onIncompletePaymentFound);
+          currentUser        = auth;
+          payBtn.disabled    = false;
+          payBtn.textContent = "Pay with Pi";
+          showPioneerBar(auth.user.username);
+          setPayStatus("", "");
+        } catch (err) {
+          console.error("[Auth retry]", err);
+          payBtn.disabled    = false;
+          payBtn.textContent = "Pay with Pi";
+          setPayStatus("Authentication failed. Please reload the app.", "#ff4444");
+          clearPayStatus(5000);
+          return;
+        }
       }
 
       Pi.createPayment(
@@ -1083,6 +1105,10 @@
         unlockVideo(savedTx, true);  // silent=true: skip the success banner on restore
         replayLabel.style.display = "block";
       }
+
+      // Disable button and show connecting state until Pi.authenticate() resolves
+      payBtn.disabled    = true;
+      payBtn.textContent = "Connecting...";
 
       payBtn.addEventListener("click", startPayment);
 
