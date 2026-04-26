@@ -880,23 +880,28 @@
     // (e.g. app crashed mid-flow), onIncompletePaymentFound fires automatically.
 
     function onIncompletePaymentFound(payment) {
-      console.log("Incomplete payment found and completed", payment);
-      Pi.completePayment(payment.identifier);
+      // Pi.completePayment() does not exist on the client SDK.
+      // Incomplete payments must be finalised server-side via POST /payments/:id/complete.
+      // Log the payment ID so it can be resolved manually if needed.
+      console.warn("[onIncompletePaymentFound] Incomplete payment detected. ID:", payment.identifier);
     }
 
     async function authenticateUser() {
       try {
         const auth = await Pi.authenticate(["payments"], onIncompletePaymentFound);
+        if (!auth || !auth.user) {
+          throw new Error("Pi.authenticate resolved without user data");
+        }
         currentUser = auth;
         console.log("[Pi Auth] success:", auth);
         showPioneerBar(auth.user.username);
-        // Auth resolved — gate the button open for payment
         payBtn.disabled    = false;
         payBtn.textContent = "Pay with Pi";
       } catch (err) {
         console.error("[Pi Auth] error:", err);
-        showAuthError("Authentication failed");
-        // Still enable the button so the user can tap to retry via startPayment
+        // Show a short hint in the pioneer bar but keep it non-alarming —
+        // the user can still tap the button to trigger a fresh auth attempt.
+        showAuthError("Tap button to connect Pi wallet");
         payBtn.disabled    = false;
         payBtn.textContent = "Pay with Pi";
       }
@@ -1017,24 +1022,29 @@
     // ── Payment flow ──────────────────────────────────────────────────────────────
 
     async function startPayment() {
-      // If auth hasn't resolved yet (edge case), retry it before opening payment
+      // If auth hasn't resolved yet, attempt it now before opening the payment dialog
       if (!currentUser) {
         payBtn.disabled    = true;
         payBtn.textContent = "Connecting...";
-        setPayStatus("Authenticating with Pi...", "#F0A500");
+        setPayStatus("Connecting to Pi wallet...", "#F0A500");
         try {
           const auth = await Pi.authenticate(["payments"], onIncompletePaymentFound);
+          if (!auth || !auth.user) {
+            throw new Error("Pi.authenticate resolved without user data");
+          }
           currentUser        = auth;
           payBtn.disabled    = false;
           payBtn.textContent = "Pay with Pi";
           showPioneerBar(auth.user.username);
-          setPayStatus("", "");
+          payStatus.textContent = "";
         } catch (err) {
           console.error("[Auth retry]", err);
           payBtn.disabled    = false;
           payBtn.textContent = "Pay with Pi";
-          setPayStatus("Authentication failed. Please reload the app.", "#ff4444");
-          clearPayStatus(5000);
+          // Show the real Pi SDK error so it can be diagnosed
+          const detail = err && (err.message || err.toString());
+          setPayStatus("Pi error: " + (detail || "unknown — check console"), "#ff4444");
+          clearPayStatus(8000);
           return;
         }
       }
