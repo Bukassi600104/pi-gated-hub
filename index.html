@@ -764,12 +764,13 @@
     const SANDBOX_MODE           = false;
     const CREATOR_WALLET_ADDRESS = "";  // Add your Pi testnet wallet address here before pushing to GitHub
     const REQUIRED_AMOUNT        = 1;
-    const VIDEO_SRC              = "";  // Add your video file URL here before pushing to GitHub
-    const VIDEO_POSTER           = "";  // Add your video poster/thumbnail URL here before pushing to GitHub
+    const VIDEO_SRC              = "pi-business-steps.mp4";
+    const VIDEO_POSTER           = "pi-breakthrough.png";
     // ──────────────────────────────────────────────────────────────────────────────
 
-    // Pi SDK init — must be the very first Pi call; everything else depends on it
-    Pi.init({ version: "2.0", sandbox: SANDBOX_MODE });
+    // Pi.init() is called inside DOMContentLoaded (see Boot section below).
+    // Calling it at parse time causes "SDK not initialized" errors in the Pi Browser
+    // because the Pi Browser's native bridge isn't ready until the DOM is fully loaded.
 
     // Height of the amber sandbox banner; 0 when not in sandbox mode
     const SANDBOX_BAR_HEIGHT = SANDBOX_MODE ? 28 : 0;
@@ -1092,7 +1093,11 @@
     // ── Boot ──────────────────────────────────────────────────────────────────────
 
     document.addEventListener("DOMContentLoaded", () => {
-      // Assign video attributes from config (empty string leaves element inert)
+      // Pi.init() must be the very first Pi call and must run after DOM is ready
+      // so the Pi Browser's native bridge is fully available.
+      Pi.init({ version: "2.0", sandbox: SANDBOX_MODE });
+
+      // Assign video attributes from config
       if (VIDEO_SRC)    gateVideo.src    = VIDEO_SRC;
       gateVideo.poster = VIDEO_POSTER;
 
