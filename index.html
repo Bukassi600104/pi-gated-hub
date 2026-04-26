@@ -768,17 +768,12 @@
     const VIDEO_POSTER           = "pi-breakthrough.png";
     // ──────────────────────────────────────────────────────────────────────────────
 
-    // piInit() must be called immediately before every Pi.authenticate() call.
-    // The Pi Browser can overwrite window.Pi with its native bridge at any point
-    // during page load, so a single early Pi.init() is not reliable.
     // In production the sandbox field must be OMITTED — passing sandbox:false
     // is treated differently by some SDK versions and causes "not initialized" errors.
+    // No try-catch here: if Pi.init() throws the error propagates to the caller
+    // so the pioneer bar / pay-status shows the real SDK error instead of swallowing it.
     function piInit() {
-      try {
-        Pi.init(SANDBOX_MODE ? { version: "2.0", sandbox: true } : { version: "2.0" });
-      } catch (e) {
-        console.warn("[piInit]", e);
-      }
+      Pi.init(SANDBOX_MODE ? { version: "2.0", sandbox: true } : { version: "2.0" });
     }
 
     // Height of the amber sandbox banner; 0 when not in sandbox mode
@@ -1055,7 +1050,12 @@
           payBtn.textContent = "Pay with Pi";
           // Show the real Pi SDK error so it can be diagnosed
           const detail = err && (err.message || err.toString());
-          setPayStatus("Pi error: " + (detail || "unknown — check console"), "#ff4444");
+          const isNotInit = detail && detail.toLowerCase().includes("not initialized");
+          const msg = isNotInit
+            ? "App not registered in Pi Developer Portal — see console"
+            : "Pi error: " + (detail || "unknown — check console");
+          console.error("[Auth] If you see 'not initialized', register this app at developers.minepi.com and set the URL to: " + location.href);
+          setPayStatus(msg, "#ff4444");
           clearPayStatus(8000);
           return;
         }
@@ -1107,8 +1107,7 @@
       // Initial piInit() — also called immediately before each Pi.authenticate()
       piInit();
 
-      // Assign video attributes from config
-      if (VIDEO_SRC)    gateVideo.src    = VIDEO_SRC;
+      // Poster only in locked state — src is set by unlockVideo() to avoid premature 404
       gateVideo.poster = VIDEO_POSTER;
 
       if (!checkPiBrowser()) return;
