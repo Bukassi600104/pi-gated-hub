@@ -768,9 +768,18 @@
     const VIDEO_POSTER           = "pi-breakthrough.png";
     // ──────────────────────────────────────────────────────────────────────────────
 
-    // Pi.init() is called inside DOMContentLoaded (see Boot section below).
-    // Calling it at parse time causes "SDK not initialized" errors in the Pi Browser
-    // because the Pi Browser's native bridge isn't ready until the DOM is fully loaded.
+    // piInit() must be called immediately before every Pi.authenticate() call.
+    // The Pi Browser can overwrite window.Pi with its native bridge at any point
+    // during page load, so a single early Pi.init() is not reliable.
+    // In production the sandbox field must be OMITTED — passing sandbox:false
+    // is treated differently by some SDK versions and causes "not initialized" errors.
+    function piInit() {
+      try {
+        Pi.init(SANDBOX_MODE ? { version: "2.0", sandbox: true } : { version: "2.0" });
+      } catch (e) {
+        console.warn("[piInit]", e);
+      }
+    }
 
     // Height of the amber sandbox banner; 0 when not in sandbox mode
     const SANDBOX_BAR_HEIGHT = SANDBOX_MODE ? 28 : 0;
@@ -888,6 +897,7 @@
     }
 
     async function authenticateUser() {
+      piInit();
       try {
         const auth = await Pi.authenticate(["payments"], onIncompletePaymentFound);
         if (!auth || !auth.user) {
@@ -1029,6 +1039,7 @@
         payBtn.textContent = "Connecting...";
         setPayStatus("Connecting to Pi wallet...", "#F0A500");
         try {
+          piInit();
           const auth = await Pi.authenticate(["payments"], onIncompletePaymentFound);
           if (!auth || !auth.user) {
             throw new Error("Pi.authenticate resolved without user data");
@@ -1093,9 +1104,8 @@
     // ── Boot ──────────────────────────────────────────────────────────────────────
 
     document.addEventListener("DOMContentLoaded", () => {
-      // Pi.init() must be the very first Pi call and must run after DOM is ready
-      // so the Pi Browser's native bridge is fully available.
-      Pi.init({ version: "2.0", sandbox: SANDBOX_MODE });
+      // Initial piInit() — also called immediately before each Pi.authenticate()
+      piInit();
 
       // Assign video attributes from config
       if (VIDEO_SRC)    gateVideo.src    = VIDEO_SRC;
